@@ -1,6 +1,15 @@
+# Example code in package build process
+*-Ex.R
+
+# R data files from past sessions
+.Rdata
 .Rproj.user
 .Rhistory
-.RData
+
+# RStudio files
+.Rproj.user/
+
+# RPubs and vim files
 *_cache/
 /.gitignore.swp
 /.gitignore~
