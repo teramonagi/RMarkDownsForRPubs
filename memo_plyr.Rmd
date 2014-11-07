@@ -1,0 +1,101 @@
+Plyrパッケージの使い方メモ
+========================================================
+plyrパッケージはデータ操作を簡略化する関数が多数用意されている便利パッケージで、思想としては
+* ある指定した特徴量に応じてデータを分割(Split)
+* 分割したデータに対する関数の適用(Apply)
+* 分割したデータを再結合して（list, data.frame, arrayでの）結果の出力(Combine)
+
+という３プロセスにデータ処理を分けて考えるような作りになっている。特にその思想が反映されている関数群が
+
+* aaply
+* adply
+* rlply
+
+等の関数で、命名規則としてはx型を入力型としてy型を出力型としてデータ処理してくれる関数だとxyplyと書くことになる。めんどいので以下xyply系関数と書く事にする。入力・出力に応じた一覧で分類して書いておくと
+
+入力 / 出力 |array | data.frame | list | なし
+--- | --- | --- | --- |---
+array      | aaply | adply | alply | a_ply
+data.frame | daply | ddply | dlply | d_ply
+list       | laply | ldply | llply | l_ply
+整数       | raply | rdply | rlply | r_ply
+
+となる。
+まずはパッケージのロードと、よく使われるサンプルデータ（baseball)を表示
+```{r warning=FALSE}
+library(plyr)
+head(baseball)
+```
+以下のコードで
+- baseballのデータを年毎に分割して(Split)
+- 分割された各データの行数を計算(nrow)し(Apply)
+- 分割した結果を結合してarray型として返却(Combine)
+
+するという流れになる。
+```{r}
+head(daply(baseball, .(year), nrow))
+```
+基本的にはこの使い方が全てなので、後はこの枠組みに自分の解いている問題を当てはめるかがキーになるわけですが、そのためにxyply系関数以外にも便利関数が多数用意されているので、それらをうまく組み合わせると更に効率良くデータ処理する事が出来る。例えばcolwise関数は
+
+- 各列に対してcolwise関数の引数として指定した関数を適用する関数を返す関数
+
+と文字で書くと何を言っているのか分かりにくいが、要するに動作を観てみれば一発で、
+```{r warning=FALSE}
+#nmissing関数：欠損値の個数をカウント
+nmissing <- function(x) sum(is.na(x))
+#各列に対して引数の関数を適用する関数を返す関数
+colwise(nmissing)(baseball)
+```
+と、各列に対してnmissing関数を適用した結果を抽出してくれる。これをxyply系関数と組み合わせると強力で
+```{r warning=FALSE}
+#年毎の各列の欠損値の個数
+head(ddply(baseball, .(year), colwise(nmissing)))
+```
+のように短いコードで複雑な動作を記述することが出来るわけです。colwise関数は更に特定の列だけを指定する事も出来て
+```{r warning=FALSE}
+head(ddply(baseball, .(year), colwise(nmissing, .(sb, cs, so))))
+#条件の指定はboolを返す関数でもOK。↓の場合は数値列のみ欠損値の個数をカウント
+head(ddply(baseball, .(year), colwise(nmissing, is.numeric)))
+```
+こんな感じで書く事が出来る。
+
+その他便利関数としてはcount関数ってのがあって、その名の通り指定した列の値ごとにデータの個数をカウントしてくれる。
+```{r warning=FALSE}
+#第一引数の組み合わせの数を数える（＝１でインクリメント）
+x <- data.frame(id=c("a","b","a"), g=c(3,6,8))
+count(x, "id")
+#第二引数指定した場合、その列の値でインクリメントされる
+count(x, "id", "g")
+```
+
+each関数は引数に指定した関数をそれぞれ適用した結果を返す関数を返す関数
+```{r warning=FALSE}
+#それぞれの関数に引数1:10を実行。
+each(min, max)(1:10)
+#これは頻繁に使えそうな書き方
+each(length, mean, var)(rnorm(100))
+```
+
+try-catchの簡略版的な書き方もあった。
+```{r warning=FALSE}
+x <- 100
+f <- function(x) if (x == 1) stop("Error!") else 1
+safef <- failwith(NULL, f)
+x <- safef(1)
+x
+````
+
+頭にrが付くxyply系関数は整数を第一引数にとって、指定回数だけ以下の処理を反復してくれる。例えばこれで100回適当な回帰分析を行った結果をlist型として返却してくれる。
+```{r warning=FALSE}
+#100回回帰分析する
+x <- rlply(100, lm(y ~ x, data=data.frame(x=rnorm(100), y=rnorm(100))))
+x[[1]]
+```
+
+データの要約もラクラク作成
+```{r warning=FALSE}
+#ddply(baseball, .(year), function(x)mean(x$rbi, na.rm=TRUE)))と同じ
+head(ddply(baseball, .(year), summarise, mean_rbi = mean(rbi, na.rm = TRUE)))
+```
+
+とかなり便利なパッケージなのでデータ整形の際には積極的に使っていこうと思う。

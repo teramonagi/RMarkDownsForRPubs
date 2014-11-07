@@ -1,0 +1,41 @@
+ポアソン
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#1単位時間内に到着する訪問者数を数えるシミュレーション
+VisitorCounter <- function(lambda)
+{
+  counter <- 0
+  time.arrival <- rexp(1, rate = lambda)
+  while(time.arrival < 1) {
+    counter      <- counter + 1
+    #次の訪問者の到着時間を計算
+    time.arrival <- time.arrival + rexp(1, rate = lambda)
+  }
+  counter
+}  
+
+#１単位時間あたりの訪問者数の平均値
+lambda <- 5
+#シミュレーション回数
+N <- 10^4
+#シミュレーション実施
+x <- sapply(1:N, function(i){VisitorCounter(lambda)})
+#表示
+barplot(rbind(table(x) / N, dpois(0:max(x), lambda)), 
+  col = c("violetred1", "slateblue4"),
+  legend.text = c("Simulation", "Theoritical"),
+  args.legend = list(x = "topright"),
+  beside = TRUE
+  )
+```
+
+You can also embed plots, for example:
+
+```{r fig.width=7, fig.height=6}
+plot(cars)
+```

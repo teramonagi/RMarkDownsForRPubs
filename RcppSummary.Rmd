@@ -1,0 +1,337 @@
+---
+output:
+  knitrBootstrap::bootstrap_document:
+    theme.chooser: TRUE
+    highlight.chooser: TRUE
+---
+
+```{r, echo=FALSE}
+#Hidden setting
+library(knitr)
+opts_chunk$set(cache = TRUE)
+```
+# はじめに
+
+## このドキュメントについて
+このドキュメントは俺の俺による俺のためのRcppドキュメントである。
+出来るところは積極的にc++11/0xでいきたい。Bye C++ 03!!!
+そして、Rcppの機能も出来るだけ新しめの奴ばかりを使っていきたい。だって進化速いからね？
+
+またこのドキュメントは随時更新予定であり、
+
+- (AAA)[]
+
+からオリジナルのR Markdownファイルが入手可能である。
+
+## Rcppのインスト-ルとロード
+何はともあれまずはRcppのインストールが必要だ。
+```{r, eval=FALSE}
+install.packages("Rcpp")
+```
+そして、実際に使うためにはそれからライブラリのロードが必要となる。
+```{r}
+library(Rcpp)
+```
+
+## C++11の導入
+以下の設定によりC++11(Windows版はまだC++0xレベル)を使用することが可能になる。
+Linux & Macなら"-std=c++11"で良い（はず）。
+```{r}
+Sys.setenv("PKG_CXXFLAGS"="-std=c++0x") 
+```
+
+package開発の場合、ソースコード(cpp)ファイルのの何処かに
+```
+// [[Rcpp::plugins(cpp11)]] 
+```
+という記述を施しておけばよい。
+
+## 基本的な評価法
+evalCpp関数でワンライナーなC++のコード氷菓ができる。
+```{r}
+evalCpp("2 + 3")
+```
+cppFunction
+sourceCpp
+
+## 参照渡 v.s. 値渡
+```{r}
+cppFunction('
+  void refOrValue(NumericVector x) 
+  {
+    x[0] = 100;
+  }
+')
+x <- 1:3
+refOrValue(x)
+x
+```
+
+## Rcppを使用しているその他のパッケージについて
+Rcppを使用しているその他のパッケージ、例えば行列計算用のC++ライブラリであるArmadilloを使いたい場合は、そのArmadilloライブラリ自信を明示的にインストールしなくても、単に
+```{r, eval=FALSE}
+install.packages("RcppArmadillo")
+```
+して、やればよい。パッケージのインストール先にArmadilloも含まれている。
+なので、後は普通に
+```{r}
+library(RcppArmadillo)
+```
+してやって、
+```{r}
+cppFunction(depends = "RcppArmadillo",includes="#define ARMA_DONT_USE_CXX11", '
+  arma::vec exampleArmadillo(arma::vec x) 
+  {
+    return (x+123);
+  }
+')
+x <- 1:3
+exampleArmadillo(x)
+```
+のようにコードが動く。
+```
+includes="#define ARMA_DONT_USE_CXX11"
+```
+はWindowsコンパイラ用の警告消しのおまじないなので、基本なくても良い。
+
+全部のRcpp系ライブラリにおいて、この**外部ライブラリは明示的にインストールしなくてもいい形式**だとありがたいんだが、どうなっているのだろうか。
+
+
+# Rcppが提供するデータ型について
+
+## NumericVectorについて
+NumericVectorはstd::vectorと同様に一律な値の初期化が可能。
+```{r}
+evalCpp("NumericVector(2,3.0)")
+```
+あるいはC++11/0xでは{...}による初期化もできる。
+```{r}
+cppFunction('
+  NumericVector initializeNumericVector1() 
+  {
+    NumericVector x = {1,2,3,4};
+    return x;
+  }
+')
+initializeNumericVector1()
+```
+あるいはstd::generateを用いて以下のように書く事もできる。
+```{r}
+cppFunction('
+  NumericVector initializeNumericVector2() 
+  {
+    int n = 0;
+    NumericVector x(10);
+    std::generate(x.begin(), x.end(), [&n]{return n++;});
+    return x;
+  }
+')
+initializeNumericVector2()
+```
+
+
+要素ごとの四則演算も可能
+```{r}
+evalCpp("NumericVector(2,1.0) + NumericVector(2,5.0)")
+evalCpp("NumericVector(2,2.0) - NumericVector(2,6.0)")
+evalCpp("NumericVector(2,3.0) * NumericVector(2,7.0)")
+evalCpp("NumericVector(2,4.0) / NumericVector(2,8.0)")
+```
+
+R-ライクなべき乗計算(^2みたいなの)は出来なくて、C言語っぽいpow関数を使う。
+```{r}
+evalCpp("pow(exp(NumericVector(3, 2.0)), 2.0)")
+```
+
+名前付ベクトルの受け渡しも可能。
+```{r}
+cppFunction('
+  double namedArgumentNV(NumericVector x) 
+  {
+    double a = x["a"];
+    return a;
+  }
+')
+namedArgumentNV(c(x=100, y=123, a=333))
+```
+
+<!--
+
+### std::vector v.s. NumericVectorではNumericVectorの方が速げ
+当然、通常のC++に慣れているものとしてはNumericVectorなんぞ使わなくとも、std::vectorでいんじゃね？と思って、速度検証してみた。ネタは何をやるにしても必要になるであろう単なるランダムアクセスだ。この結果を見る限りNumericVectorの方が速いようなので、積極的に乗り換えていこう。
+```{r}
+sourceCpp(code='
+  #include <vector>
+  #include <Rcpp.h>
+  using namespace Rcpp;
+  // [[Rcpp::export]]
+  double rcppVec(NumericVector xs)
+  {
+    double sum = 0; 
+    for(auto x : xs){sum += x;}
+    return sum;
+  }    
+  // [[Rcpp::export]]
+  double stdVec(std::vector<double> & xs)
+  {
+    double sum = 0; 
+    for(auto x : xs){sum += x;}
+    return sum;
+  }    
+')
+library(rbenchmark)
+benchmark(rcppVec(1:10^5), stdVec(1:10^5), order="relative")[,1:4]
+```
+
+
+## 内部で使用する関数について
+単純に、使う関数から見える位置に書いておけば良さげ。
+```{r}
+sourceCpp(code='
+  #include <Rcpp.h>  
+  using namespace Rcpp;
+  NumericVector inner_function(NumericVector x)
+  {
+    return(x+1);
+  }
+  //[[Rcpp::export]]
+  NumericVector export_function(NumericVector x0)
+  {
+    return inner_function(x0);
+  }
+')
+export_function(1:10)
+```
+
+## リストについて
+
+```{r}
+cppFunction('
+  NumericVector namedArgumentL(List x) 
+  {
+    NumericVector a = x["a"];
+    return a;
+  }
+')
+namedArgumentL(list(x=100, y=123, a=1:5))
+```
+
+# データフレームについて
+## データフレームの作成
+データフレーム(data.frame)を作成するにはDataFrame::create関数を用いる。
+以下では7個の正規分布に従う乱数を各列にしたdata.frameを返却している。
+```{r}
+cppFunction('
+  DataFrame createDataFrame()
+  {
+    Rcpp::RNGScope scope;
+    NumericVector rn = Rcpp::rnorm(7);
+    DataFrame df = DataFrame::create(Named("rnorm1")=rn, Named("rnorm2", rn), _["rnorm3"]=rn);
+    return df;
+  }
+')
+createDataFrame()
+```
+各列の指定は
+```{r, eval=FALSE}
+Named("name", value)
+Named("name") = value
+_["name"] = value
+```
+のどの書き方でもいいけど、最後のがタイプ数的に楽なので、それでいきたい。
+
+## データフレームの操作
+.push_back関数を使うとデータフレームにデータを追加できるが、
+
+- [constructing a Data Frame in Rcpp](http://stackoverflow.com/a/8631853/3926333)
+
+によると、こいつはあまり効率的なもんじゃないので、多用は厳禁。基本はC++での計算結果をそのままDataFrameにして返すだけにしたいところ。遅いなるならC++使う意味ないし、変態以外。
+```{r}
+cppFunction('
+  DataFrame pushbackDataFrame(DataFrame x)
+  {
+    DataFrame df1(x);
+    DataFrame df2(x);
+    for (int i=0;i < df1.length(); ++i)
+    {
+      df2.push_back(df1(i));
+    }
+    return df2;
+  }
+')
+pushbackDataFrame(head(iris))
+```
+
+R本体だとrbind/cbindなんて良く使っていたがそれに対応
+
+# NumericMatrixについて
+行、列を
+```{r}
+cppFunction('
+  DataFrame createDataFrameFromMatrix()
+  {
+    NumericMatrix x(4, 5);
+    return DataFrame::create(_["X"]=x(_,1));
+  }
+')
+createDataFrameFromMatrix()
+```
+
+NumericMatrix
+NumericMatrix xxの4行目にNumericVector xを代入
+```{r}
+cppFunction('
+  NumericMatrix createNumericMatrixFromNumericVector()
+  {
+    NumericVector x(2, 10.0);
+    NumericMatrix xx(4, 2);
+    xx(3,_) = x;
+    return xx;
+  }
+')
+createNumericMatrixFromNumericVector()
+```
+
+```{r}
+cppFunction('
+  NumericMatrix createNumericMatrixFromNumericVector2()
+  {
+    NumericMatrix xx(3, 2);
+    xx.attr("dimnames") = List::create(
+      Rcpp::CharacterVector::create("1", "2", "3"), 
+      Rcpp::CharacterVector::create("a", "b"));
+    return xx;
+  }
+')
+createNumericMatrixFromNumericVector2()
+```
+
+```{r}
+cppFunction('
+  NumericMatrix createNumericMatrixFromNumericVector3()
+  {
+    NumericMatrix xx(3, 2);
+    List dimnames = xx.attr("dimnames");
+    xx.attr("dimnames") = List::create(
+      dimnames[0],
+      Rcpp::CharacterVector::create("a", "b"));
+    return xx;
+  }
+')
+createNumericMatrixFromNumericVector3()
+```
+```{r}
+cppFunction('
+  NumericMatrix createNumericMatrixFromNumericVector4()
+  {
+    NumericMatrix xx(3, 2);
+    List dimnames = xx.attr("dimnames");
+    xx.attr("dimnames") = List::create(
+      dimnames[0],
+      Rcpp::CharacterVector::create("a", "b"));
+    return xx;
+  }
+')
+createNumericMatrixFromNumericVector4()
+```
+-->
