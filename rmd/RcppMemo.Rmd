@@ -1,11 +1,10 @@
 ---
-output:
-  knitrBootstrap::bootstrap_document:
-    theme.chooser: TRUE
-    highlight.chooser: TRUE
+title: "Rcpp俺様備忘録"
+author: "teramonagi"
+date: "Friday, November 07, 2014"
+output: html_document
 ---
-
-```{r, echo=FALSE}
+```{r}
 #Hidden setting
 library(knitr)
 opts_chunk$set(cache = TRUE)
@@ -45,6 +44,9 @@ package開発の場合、ソースコード(cpp)ファイルのの何処かに
 // [[Rcpp::plugins(cpp11)]] 
 ```
 という記述を施しておけばよい。
+
+## 注意したいこと 
+- R内では`1`から始まる一方、C++内インデックスは0から始まる点に注意
 
 ## 基本的な評価法
 evalCpp関数でワンライナーなC++のコード氷菓ができる。
@@ -155,7 +157,6 @@ cppFunction('
 namedArgumentNV(c(x=100, y=123, a=333))
 ```
 
-<!--
 
 ### std::vector v.s. NumericVectorではNumericVectorの方が速げ
 当然、通常のC++に慣れているものとしてはNumericVectorなんぞ使わなくとも、std::vectorでいんじゃね？と思って、速度検証してみた。ネタは何をやるにしても必要になるであろう単なるランダムアクセスだ。この結果を見る限りNumericVectorの方が速いようなので、積極的に乗り換えていこう。
@@ -334,4 +335,13 @@ cppFunction('
 ')
 createNumericMatrixFromNumericVector4()
 ```
--->
+
+## リストの操作
+
+まず、RからC++サイドリストを渡す場合、関数の引数として`List`クラスを使用する。
+```{r}
+cppFunction('
+  SEXP getFirstElemenOfListFromR(List list){return list[0];}
+')
+getFirstElemenOfListFromR(list(a=1:10, b=iris))
+```
