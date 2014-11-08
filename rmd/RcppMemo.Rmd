@@ -1,112 +1,78 @@
 ---
-title: "Rcpp俺様備忘録"
+title: "Rcpp 俺様備忘録"
 author: "teramonagi"
 date: "Friday, November 07, 2014"
-output: html_document
+output: 
+  knitrBootstrap::bootstrap_document:
+    theme.chooser: TRUE
+    highlight.chooser: TRUE
 ---
-```{r}
+```{r, echo=FALSE}
 #Hidden setting
+options(warn = -1)
 library(knitr)
 opts_chunk$set(cache = TRUE)
 ```
 # はじめに
 
 ## このドキュメントについて
-このドキュメントは俺の俺による俺のためのRcppドキュメントである。
-出来るところは積極的にc++11/0xでいきたい。Bye C++ 03!!!
-そして、Rcppの機能も出来るだけ新しめの奴ばかりを使っていきたい。だって進化速いからね？
+このドキュメントは俺の俺による俺のためのRcppドキュメントである。出来るところは積極的にc++11/0xでいきたい。Bye C++ 03!!!そして、Rcppの機能も出来るだけ新しめの奴ばかりを使っていきたい。だって進化速いからね？またこのドキュメントは随時更新予定であり、
 
-またこのドキュメントは随時更新予定であり、
+- [RcppMemo](https://github.com/teramonagi/RMarkDownsForRPubs/blob/master/rmd/RcppMemo.Rmd)
 
-- (AAA)[]
-
-からオリジナルのR Markdownファイルが入手可能である。
+からオリジナルのR Markdownファイルが入手可能だ。
 
 ## Rcppのインスト-ルとロード
-何はともあれまずはRcppのインストールが必要だ。
+Rcppを使うので、何はともあれまずはRcppのインストールが必要だ。
 ```{r, eval=FALSE}
 install.packages("Rcpp")
 ```
-そして、実際に使うためにはそれからライブラリのロードが必要となる。
+Windowsの環境においてはC++用コンパイラ(GCC)やUNIXコマンドのセットが入っている
+
+- [Rtools](http://cran.r-project.org/bin/windows/Rtools/)
+
+も突っ込んでおく必要がある。これは上記のサイトからexeを落っことしてデフォルトの設定でよいので、インストールを実行する。そして、実際に使うためには、R上でRcppライブラリのロードが必要となる。
 ```{r}
 library(Rcpp)
 ```
 
 ## C++11の導入
 以下の設定によりC++11(Windows版はまだC++0xレベル)を使用することが可能になる。
-Linux & Macなら"-std=c++11"で良い（はず）。
+Linux & Macなら以下の部分は"-std=c++11"で良い（はず）。
 ```{r}
 Sys.setenv("PKG_CXXFLAGS"="-std=c++0x") 
 ```
 
-package開発の場合、ソースコード(cpp)ファイルのの何処かに
+また、package開発の場合、ソースコード(cpp)ファイルの何処かに
 ```
 // [[Rcpp::plugins(cpp11)]] 
 ```
-という記述を施しておけばよい。
+という記述を施しておけば、上記の設定は不要。
 
-## 注意したいこと 
-- R内では`1`から始まる一方、C++内インデックスは0から始まる点に注意
+## 全体的に注意したいこと 
+- ベクトルやデータフレームなどのデータ構造において、行や列のインデックスは、R内では`1`から始まる一方、C++内インデックスは`0`から始まる点に注意
 
 ## 基本的な評価法
-evalCpp関数でワンライナーなC++のコード氷菓ができる。
+`evalCpp`関数でワンライナーなC++のコード評価ができる。なので、*お試し評価*みたいな話であればこれでよい。例えば
 ```{r}
 evalCpp("2 + 3")
 ```
-cppFunction
-sourceCpp
+な感じ。その他にもRcppでは
 
-## 参照渡 v.s. 値渡
+- `cppFunction` : C++で書かれたR内で使える関数を作成する
+- `sourceCpp` : ファイルや文字列（C++）のコードをコンパイルして実行してくれる
+
+が用意されているが、ここではこの１ファイル(R markdownファイル)で全てを完結させたいので`sourceCpp`は使わないで、もっぱら`cppFunction`を使っていく。このやり方が一番いいのかは不明だ。
+
+# NumericVectorについて
+
+## 基本操作
+`NumericVector`はその名の通り、ベクトルを操作する型で、基本C++のstdに含まれるvectorである`std::vector`と似たようなもんだ。`NumericVector`の初期化法として、一律な値での初期化が可能。
 ```{r}
-cppFunction('
-  void refOrValue(NumericVector x) 
-  {
-    x[0] = 100;
-  }
-')
-x <- 1:3
-refOrValue(x)
-x
+#5個の要素すべてが3.33であるベクトルを作成
+evalCpp("NumericVector(5, 3.0)")
 ```
-
-## Rcppを使用しているその他のパッケージについて
-Rcppを使用しているその他のパッケージ、例えば行列計算用のC++ライブラリであるArmadilloを使いたい場合は、そのArmadilloライブラリ自信を明示的にインストールしなくても、単に
-```{r, eval=FALSE}
-install.packages("RcppArmadillo")
-```
-して、やればよい。パッケージのインストール先にArmadilloも含まれている。
-なので、後は普通に
-```{r}
-library(RcppArmadillo)
-```
-してやって、
-```{r}
-cppFunction(depends = "RcppArmadillo",includes="#define ARMA_DONT_USE_CXX11", '
-  arma::vec exampleArmadillo(arma::vec x) 
-  {
-    return (x+123);
-  }
-')
-x <- 1:3
-exampleArmadillo(x)
-```
-のようにコードが動く。
-```
-includes="#define ARMA_DONT_USE_CXX11"
-```
-はWindowsコンパイラ用の警告消しのおまじないなので、基本なくても良い。
-
-全部のRcpp系ライブラリにおいて、この**外部ライブラリは明示的にインストールしなくてもいい形式**だとありがたいんだが、どうなっているのだろうか。
-
-
-# Rcppが提供するデータ型について
-
-## NumericVectorについて
-NumericVectorはstd::vectorと同様に一律な値の初期化が可能。
-```{r}
-evalCpp("NumericVector(2,3.0)")
-```
-あるいはC++11/0xでは{...}による初期化もできる。
+あるいはC++11/0xでは初期化リスト{...}による初期化もできる。
 ```{r}
 cppFunction('
   NumericVector initializeNumericVector1() 
@@ -117,7 +83,8 @@ cppFunction('
 ')
 initializeNumericVector1()
 ```
-あるいはstd::generateを用いて以下のように書く事もできる。
+
+あるいは`std::generate`を用いて以下のように書く事もできる。ラムダ式も使えるぞ！！！
 ```{r}
 cppFunction('
   NumericVector initializeNumericVector2() 
@@ -132,20 +99,30 @@ initializeNumericVector2()
 ```
 
 
-要素ごとの四則演算も可能
+`NumericVector`では、当然、ベクトルとして期待される要素ごとの四則演算も可能。
 ```{r}
-evalCpp("NumericVector(2,1.0) + NumericVector(2,5.0)")
-evalCpp("NumericVector(2,2.0) - NumericVector(2,6.0)")
-evalCpp("NumericVector(2,3.0) * NumericVector(2,7.0)")
-evalCpp("NumericVector(2,4.0) / NumericVector(2,8.0)")
+evalCpp("NumericVector(2, 1.0) + NumericVector(2, 5.0)")
+evalCpp("NumericVector(2, 2.0) - NumericVector(2, 6.0)")
+evalCpp("NumericVector(2, 3.0) * NumericVector(2, 7.0)")
+evalCpp("NumericVector(2, 4.0) / NumericVector(2, 8.0)")
 ```
 
-R-ライクなべき乗計算(^2みたいなの)は出来なくて、C言語っぽいpow関数を使う。
+一方、Rライクなべき乗計算(^2みたいなの)は出来なくて、C言語っぽいpow関数を使う。
 ```{r}
+#2を3個持つベクトルの各々をexpして2乗したものを計算
 evalCpp("pow(exp(NumericVector(3, 2.0)), 2.0)")
 ```
+これら(exp, pow)は
 
-名前付ベクトルの受け渡しも可能。
+- [Rcpp syntactic sugar](http://cran.r-project.org/web/packages/Rcpp/vignettes/Rcpp-sugar.pdf)
+
+で説明されているように糖衣構文(要するに略記)だ。中では難解なtemplate祭が開催されている。たとえばexp関数だと
+
+- [https://github.com/RcppCore/Rcpp/blob/master/inst/include/Rcpp/sugar/functions/pow.h](https://github.com/RcppCore/Rcpp/blob/master/inst/include/Rcpp/sugar/functions/pow.h)
+
+だ。ここはありがたく使わせて頂く方向で行っておきたい。
+
+また、R上で定義した名前付ベクトルの受け渡しも可能で、C++内では`[]`演算子を通してアクセスすることができる。
 ```{r}
 cppFunction('
   double namedArgumentNV(NumericVector x) 
@@ -157,9 +134,8 @@ cppFunction('
 namedArgumentNV(c(x=100, y=123, a=333))
 ```
 
-
-### std::vector v.s. NumericVectorではNumericVectorの方が速げ
-当然、通常のC++に慣れているものとしてはNumericVectorなんぞ使わなくとも、std::vectorでいんじゃね？と思って、速度検証してみた。ネタは何をやるにしても必要になるであろう単なるランダムアクセスだ。この結果を見る限りNumericVectorの方が速いようなので、積極的に乗り換えていこう。
+## std::vector v.s. NumericVectorではNumericVectorの方が速げ
+当然、通常のC++に慣れているものとしては`NumericVector`なんぞ使わなくとも、`std::vector`でいんじゃね？と思って、速度検証してみた。ネタは何をやるにしても必要になるであろう単なるランダムアクセスだ。この結果を見る限りNumericVectorの方が速いようなので、積極的に乗り換えていこう。
 ```{r}
 sourceCpp(code='
   #include <vector>
@@ -183,87 +159,6 @@ sourceCpp(code='
 library(rbenchmark)
 benchmark(rcppVec(1:10^5), stdVec(1:10^5), order="relative")[,1:4]
 ```
-
-
-## 内部で使用する関数について
-単純に、使う関数から見える位置に書いておけば良さげ。
-```{r}
-sourceCpp(code='
-  #include <Rcpp.h>  
-  using namespace Rcpp;
-  NumericVector inner_function(NumericVector x)
-  {
-    return(x+1);
-  }
-  //[[Rcpp::export]]
-  NumericVector export_function(NumericVector x0)
-  {
-    return inner_function(x0);
-  }
-')
-export_function(1:10)
-```
-
-## リストについて
-
-```{r}
-cppFunction('
-  NumericVector namedArgumentL(List x) 
-  {
-    NumericVector a = x["a"];
-    return a;
-  }
-')
-namedArgumentL(list(x=100, y=123, a=1:5))
-```
-
-# データフレームについて
-## データフレームの作成
-データフレーム(data.frame)を作成するにはDataFrame::create関数を用いる。
-以下では7個の正規分布に従う乱数を各列にしたdata.frameを返却している。
-```{r}
-cppFunction('
-  DataFrame createDataFrame()
-  {
-    Rcpp::RNGScope scope;
-    NumericVector rn = Rcpp::rnorm(7);
-    DataFrame df = DataFrame::create(Named("rnorm1")=rn, Named("rnorm2", rn), _["rnorm3"]=rn);
-    return df;
-  }
-')
-createDataFrame()
-```
-各列の指定は
-```{r, eval=FALSE}
-Named("name", value)
-Named("name") = value
-_["name"] = value
-```
-のどの書き方でもいいけど、最後のがタイプ数的に楽なので、それでいきたい。
-
-## データフレームの操作
-.push_back関数を使うとデータフレームにデータを追加できるが、
-
-- [constructing a Data Frame in Rcpp](http://stackoverflow.com/a/8631853/3926333)
-
-によると、こいつはあまり効率的なもんじゃないので、多用は厳禁。基本はC++での計算結果をそのままDataFrameにして返すだけにしたいところ。遅いなるならC++使う意味ないし、変態以外。
-```{r}
-cppFunction('
-  DataFrame pushbackDataFrame(DataFrame x)
-  {
-    DataFrame df1(x);
-    DataFrame df2(x);
-    for (int i=0;i < df1.length(); ++i)
-    {
-      df2.push_back(df1(i));
-    }
-    return df2;
-  }
-')
-pushbackDataFrame(head(iris))
-```
-
-R本体だとrbind/cbindなんて良く使っていたがそれに対応
 
 # NumericMatrixについて
 行、列を
@@ -336,12 +231,140 @@ cppFunction('
 createNumericMatrixFromNumericVector4()
 ```
 
-## リストの操作
+# リストについて
 
-まず、RからC++サイドリストを渡す場合、関数の引数として`List`クラスを使用する。
+まず、RからC++サイドリストを渡す場合、関数の引数として`List`クラスを使用する。そして、その要素にアクセスするには`[]`演算子を用いる。
+```{r}
+cppFunction('
+  NumericVector namedArgumentL(List x) 
+  {
+    NumericVector a = x["a"];
+    return a;
+  }
+')
+namedArgumentL(list(x=100, y=123, a=1:5))
+```
+
 ```{r}
 cppFunction('
   SEXP getFirstElemenOfListFromR(List list){return list[0];}
 ')
 getFirstElemenOfListFromR(list(a=1:10, b=iris))
+```
+
+# データフレームについて
+## データフレームの作成
+データフレーム(data.frame)を作成するにはDataFrame::create関数を用いる。
+以下では7個の正規分布に従う乱数を各列にしたdata.frameを返却している。
+```{r}
+cppFunction('
+  DataFrame createDataFrame()
+  {
+    Rcpp::RNGScope scope;
+    NumericVector rn = Rcpp::rnorm(7);
+    DataFrame df = DataFrame::create(Named("rnorm1")=rn, Named("rnorm2", rn), _["rnorm3"]=rn);
+    return df;
+  }
+')
+createDataFrame()
+```
+各列の指定は
+```{r, eval=FALSE}
+Named("name", value)
+Named("name") = value
+_["name"] = value
+```
+のどの書き方でもいいけど、最後のがタイプ数的に楽なので、それでいきたい。
+
+## データフレームの操作
+.push_back関数を使うとデータフレームにデータを追加できるが、
+
+- [constructing a Data Frame in Rcpp](http://stackoverflow.com/a/8631853/3926333)
+
+によると、こいつはあまり効率的なもんじゃないので、多用は厳禁。基本はC++での計算結果をそのままDataFrameにして返すだけにしたいところ。遅いなるならC++使う意味ないし、変態以外。
+```{r}
+cppFunction('
+  DataFrame pushbackDataFrame(DataFrame x)
+  {
+    DataFrame df1(x);
+    DataFrame df2(x);
+    for (int i=0;i < df1.length(); ++i)
+    {
+      df2.push_back(df1(i));
+    }
+    return df2;
+  }
+')
+pushbackDataFrame(head(iris))
+```
+
+R本体だとrbind/cbindなんて良く使っていたがそれに対応
+
+
+# その他アレコレ
+
+## 結局R⇔C++間のデータ受け渡しは参照渡なの？値渡なの？
+```{r}
+cppFunction('
+  void refOrValue(NumericVector x) 
+  {
+    x[0] = 100;
+  }
+')
+x <- 1:3
+refOrValue(x)
+x
+```
+この結果をみると、
+
+ - RからC++に渡したベクトルは値渡しになっているようだ
+ 
+ということがわかる。たぶん、
+
+## Rcppを使用しているその他のパッケージについて
+Rcppを使用しているその他のパッケージ、例えば行列計算用のC++ライブラリであるArmadilloを使いたい場合は、そのArmadilloライブラリ自信を明示的にインストールしなくても、単に
+```{r, eval=FALSE}
+install.packages("RcppArmadillo")
+```
+して、やればよい。パッケージのインストール先にArmadilloも含まれている。なので、後は通常のRのパッケージ同様
+```{r}
+library(RcppArmadillo)
+```
+としてやれば、その機能を使用することができて
+```{r}
+cppFunction(depends = "RcppArmadillo",includes="#define ARMA_DONT_USE_CXX11", '
+  arma::vec exampleArmadillo(arma::vec x) 
+  {
+    return (x+123);
+  }
+')
+x <- 1:3
+exampleArmadillo(x)
+```
+のように、Armadilloを使用したコードを実行することができる。上の関数おいて、
+```
+includes="#define ARMA_DONT_USE_CXX11"
+```
+はWindowsコンパイラ用の警告消しのおまじないなので、基本なくても良い。
+
+全部のRcpp系ライブラリにおいて、この**外部ライブラリは明示的にインストールしなくてもいい形式**だとありがたいんだが、どうなっているのだろうか。
+
+
+## 内部で使用する関数について
+単純に、使う関数から見える位置に書いておけば良さげ。
+```{r}
+sourceCpp(code='
+  #include <Rcpp.h>  
+  using namespace Rcpp;
+  NumericVector inner_function(NumericVector x)
+  {
+    return(x+1);
+  }
+  //[[Rcpp::export]]
+  NumericVector export_function(NumericVector x0)
+  {
+    return inner_function(x0);
+  }
+')
+export_function(1:10)
 ```
