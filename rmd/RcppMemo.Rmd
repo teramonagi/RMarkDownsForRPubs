@@ -9,8 +9,10 @@ output:
 ---
 ```{r, echo=FALSE}
 #Hidden setting
+#id https://api.rpubs.com/api/v1/document/39329/aa7fa26f52ab450480e29beaf0d90cf0
 options(warn = -1)
 library(knitr)
+library(pipeR)
 opts_chunk$set(cache = TRUE)
 ```
 # はじめに
@@ -51,6 +53,7 @@ Sys.setenv("PKG_CXXFLAGS"="-std=c++0x")
 
 ## 全体的に注意したいこと 
 - ベクトルやデータフレームなどのデータ構造において、行や列のインデックスは、R内では`1`から始まる一方、C++内インデックスは`0`から始まる点に注意
+- おもに「`cppFunction`でC++で書いた関数を定義して、その関数を実際にRから呼び、結果がその下にアウトプットされる」というスタイルで書かれている。
 
 ## 基本的な評価法
 `evalCpp`関数でワンライナーなC++のコード評価ができる。なので、*お試し評価*みたいな話であればこれでよい。例えば
@@ -62,7 +65,22 @@ evalCpp("2 + 3")
 - `cppFunction` : C++で書かれたR内で使える関数を作成する
 - `sourceCpp` : ファイルや文字列（C++）のコードをコンパイルして実行してくれる
 
-が用意されているが、ここではこの１ファイル(R markdownファイル)で全てを完結させたいので`sourceCpp`は使わないで、もっぱら`cppFunction`を使っていく。このやり方が一番いいのかは不明だ。
+が用意されているが、ここではこの１ファイル(R markdownファイル)で全てを完結させたいので、ここでは`cppFunction`ばかり使っていく。たまに`sourceCpp`も使うけど。あと、ドキュメントの書き方として、このやり方が一番いいのかは不明だ。出来ればC++のソースを書いたものを文字列として取得して、R用のコードを自動生成…的なことがやりたい。
+
+
+#型変換周りについて
+Rは*妖怪型無し*よろしくな動的言語なので、コードを書く際、そんなにシビアに型の扱いを考えなくてもいいけど、C++だとそういうわけにもいかない。例えば
+```{r}
+lmcars <- lm(mpg~wt, data=mtcars)
+str(lmcars)
+```
+
+```{r}
+cppFunction('
+  bool isLm(List x){return x.inherits("lm");}
+')
+isLm(lmcars)
+```
 
 # NumericVectorについて
 
@@ -244,13 +262,15 @@ cppFunction('
 ')
 namedArgumentL(list(x=100, y=123, a=1:5))
 ```
-
+もちろん数字を引数にしてもOK。
 ```{r}
 cppFunction('
   SEXP getFirstElemenOfListFromR(List list){return list[0];}
 ')
 getFirstElemenOfListFromR(list(a=1:10, b=iris))
 ```
+
+
 
 # データフレームについて
 ## データフレームの作成

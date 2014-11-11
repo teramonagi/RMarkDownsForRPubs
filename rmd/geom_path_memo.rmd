@@ -1,0 +1,93 @@
+---
+title: "geom_pathのメモ"
+author: "teramonagi"
+date: "Tuesday, November 11, 2014"
+output: html_document
+---
+```{r echo=FALSE}
+options(warn=-1)
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(dplyr)))
+```
+## はじめに
+以下で試した話をもうちょと可視化についてやってみようと思ったらハマったので、とりあえず動くコードを残しておきたいという話。
+
+- [数値シミュレーションの結果をlistで受けてからのrbind_allで捌いて可視化するのが俺のデファクトスタンダード](http://d.hatena.ne.jp/teramonagi/20140913/1410565013)
+
+
+まず、ここの話で必要になるライブラリをロード。
+```{r eval=FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+## シミュレーション用の関数作成
+まず、二次元ブラウン運動のシミュレーションを実施する関数を作成する。戻り値は`data.frame`になっていて、
+
+- `x`：ｘ座標
+- `y`：y座標
+- `group`：各シミュレーションを区別するためのID的な文字
+- `width`： あとで使う線の太さ
+
+という４つの列を持つ。
+```{r}
+make_2d_df <- function(label){
+  size <- 100
+  x <- cumsum(rnorm(size))
+  y <- cumsum(rnorm(size))
+  data.frame(x=x, y=y, group=rep(label, size), width=1:size)
+}
+```
+
+## シミュレーションの実行
+そして、シミュレーションを実行する。この書き方も
+
+- [数値シミュレーションの結果をlistで受けてからのrbind_allで捌いて可視化するのが俺のデファクトスタンダード](http://d.hatena.ne.jp/teramonagi/20140913/1410565013)
+
+で書いていた内容。
+```{r}
+df <- lapply(LETTERS[1:10], make_2d_df) %>% rbind_all
+```
+
+## 可視化する
+そして、ここからが問題の可視化だ。
+以下のコードは前に結果を確認していた、（結果として得たいという意味で）正しく動くもの。各シミュレーション結果ごとに`group`というIDを振っており、それにより色分けして表示するってことだ。
+```{r}
+ggplot(df, aes(x=x, y=y)) + geom_path(aes(color=group)) + geom_point(aes(color=group), size=3)
+```
+
+`geom_point`が各シミュレーションの点の描画に相当しているが、今回やりたい趣旨とは違うので、もう使わない。
+```{r}
+ggplot() + geom_path(aes(x=x, y=y, color=group), data=df)
+```
+
+これで線だけになった。ここで、線の色を全部黒にしたいぞと思って以下のように`color`引数を追加してみると、結果としてうまくいかない。図には、余計な線が入っているように見えて、これは多分、各シミュレーション結果のgroup分けの処理がうまくいっておらず、全部をひとつなぎに描画しているように思える。
+```{r}
+ggplot() + geom_path(aes(x=x, y=y, color=group), color="black", data=df)
+```
+
+
+これをなんとかしようと、次に、`aes`関数内で指定している`color`の代わりに`group`を指定してみると、色が黒のままだが、まだパス（各シミュレーション経路）としては区別されたまま描画される。つまり、上の図でいう余計な線が入らなくなるってことだ。
+```{r}
+ggplot() + geom_path(aes(x=x, y=y, group=group), data=df)
+```
+
+更に、`geom_path`で描画するラインをちょっとずつ太くする、具体的には`df`の`width`項目を使って線幅を返るには以下のように`size`引数を追加する。
+```{r}
+ggplot() + geom_path(aes(x=x, y=y, group=group, size=width), data=df) 
+```
+
+
+この線幅自体の上下限を制御するためには、`scale_size`関数を用いて
+```{r}
+ggplot() + geom_path(aes(x=x, y=y, group=group, size=width), data=df) + scale_size(range=c(0.1, 1))
+```
+
+と書くといい。ちなみに
+
+- `scale_size(range=c(1, 6))`
+
+がデフォルトの模様。
+
+
+たぶん、ggplot2の基本コンセプトが理解出来てないんだろうなぁ・・・
