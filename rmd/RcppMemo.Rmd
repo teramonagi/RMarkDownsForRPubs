@@ -2,14 +2,12 @@
 title: "Rcpp 俺様備忘録"
 author: "teramonagi"
 date: "Friday, November 07, 2014"
-output: 
-  knitrBootstrap::bootstrap_document:
-    theme.chooser: TRUE
-    highlight.chooser: TRUE
+output: html_document
 ---
 ```{r, echo=FALSE}
 #Hidden setting
 #id https://api.rpubs.com/api/v1/document/39329/aa7fa26f52ab450480e29beaf0d90cf0
+Sys.setenv(LANG = "C")
 options(warn = -1)
 library(knitr)
 library(pipeR)
@@ -42,7 +40,7 @@ library(Rcpp)
 以下の設定によりC++11(Windows版はまだC++0xレベル)を使用することが可能になる。
 Linux & Macなら以下の部分は"-std=c++11"で良い（はず）。
 ```{r}
-Sys.setenv("PKG_CXXFLAGS"="-std=c++0x") 
+Sys.setenv("PKG_CXXFLAGS"="-std=c++0x -Wc++0x-compat") 
 ```
 
 また、package開発の場合、ソースコード(cpp)ファイルの何処かに
@@ -57,9 +55,11 @@ Sys.setenv("PKG_CXXFLAGS"="-std=c++0x")
 
 ## 基本的な評価法
 `evalCpp`関数でワンライナーなC++のコード評価ができる。なので、*お試し評価*みたいな話であればこれでよい。例えば
+
 ```{r}
-evalCpp("2 + 3")
+evalCpp("1")
 ```
+
 な感じ。その他にもRcppでは
 
 - `cppFunction` : C++で書かれたR内で使える関数を作成する
@@ -162,7 +162,7 @@ sourceCpp(code='
   // [[Rcpp::export]]
   double rcppVec(NumericVector xs)
   {
-    double sum = 0; 
+    double sum = 0;
     for(auto x : xs){sum += x;}
     return sum;
   }    
@@ -372,6 +372,7 @@ includes="#define ARMA_DONT_USE_CXX11"
 
 ## 内部で使用する関数について
 単純に、使う関数から見える位置に書いておけば良さげ。
+この例では`inner_function`関数を`export_function`関数の中から呼び出して使用している。
 ```{r}
 sourceCpp(code='
   #include <Rcpp.h>  
