@@ -1,0 +1,190 @@
+---
+title: "RFinanceJで振り返る金融マーケット2014"
+author: "teramonagi"
+output: html_document
+---
+
+```{r echo=FALSE}
+options(warn=-1)
+library(knitr)
+library(devtools)
+library(RFinanceJ)
+library(ggvis)
+library(rCharts)
+library(openair)
+suppressPackageStartupMessages(library(dplyr))
+library(tidyr)
+opts_chunk$set(prompt=TRUE, warning=FALSE, error=FALSE, results = "asis", comment=NA, tidy=FALSE)
+```
+
+## はじめに
+この記事は
+
+- [R Advent Calendar 2014](http://qiita.com/advent-calendar/2014/r-rstudio)
+
+の21日目の記事です。
+とりあえず以下のようにパッケージぶっこんでおいてください。流行りものだけを使うので、それぞれのパッケージについては適切な解説記事が見つかるでしょう。その他中で使うパッケージは都度説明。
+```{r eval=FALSE}
+install.packages("tidyr")
+install.packages("dplyr")
+```
+
+## RFinanceJとは
+RFinanceJとは、私だけが細々と開発している、日本の金融/経済データを取得するためのパッケージです。データソースがしょぼすぎる上に機能があまりありません、はい。インストール方法は下記の通りです。インストール＆ロードする際に、たくさん警告が出るんですが、それはそのうち消す、うん。あと、この記事書いてる途中で気がついたんだけど、このパッケージで取得したデータって、日付の降順に並ぶようになってますな…私は日付の昇順派なので、そこもそのうち直します。
+
+```{r eval=FALSE}
+#devtools入れてないなら以下(↓)も実行
+#install.packages("devtools")
+library(devtools)
+#RFinanceJのインストール
+install_github("teramonagi/RFinanceJ")
+library(RFinanceJ)
+```
+
+このRFinanceJパッケージのコード、及び簡単な説明資料は以下をご参照あれ。
+
+- コード
+    * https://github.com/teramonagi/RFinanceJ
+
+- 資料
+
+<iframe src="http://www.slideshare.net/slideshow/embed_code/42418092" width="425" height="355" frameborder="0" marginwidth="0" marginheight="0" scrolling="no" style="border:1px solid #CCC; border-width:1px; margin-bottom:5px; max-width: 100%;" allowfullscreen> </iframe> <div style="margin-bottom:5px"> <strong> <a href="//www.slideshare.net/teramonagi/rfinancej" title="RFinanceJはじめました" target="_blank">RFinanceJはじめました</a> </strong> from <strong><a href="//www.slideshare.net/teramonagi" target="_blank">tera monagi</a></strong> </div>
+
+## RFinanceJで振り返るマーケット2014
+取れるもんをガシガシ取得して、2014年のマーケットを振り返りたいと思います。同時に可視化もやっていくので、ggvisパッケージもインストール＆ロードします。ggvisは開発途中なのでAPIの変更くらって以下のコードが動かなくなる可能性大ですが、気にしない気にしない。Webとの相性はggplot2を超えている(はず)なので、気にしないー。ついでにjavascriptベースの可視化ライブラリであるrChartsも入れておきます。
+
+```{r eval=FALSE}
+install.packages(c("ggvis", "rcharts"))
+install_github('ramnathv/rCharts')
+library(ggvis)
+library(rCharts)
+```
+
+
+### 日経平均を振り返る
+今年の頭からの日経平均を取得するには以下のように書きます。同時に描画もする。
+９月半ば以降の怒涛の上げが凄いですな、日銀黒田バズーカ恐るべし。
+以下のコードで、'998407.O'となっているＩＤ的な部分は、オリジナルのデータに相当する
+
+- http://stocks.finance.yahoo.co.jp/stocks/detail/?code=998407.O
+
+というサイトのcode=以下の引数を引っ張ってきます。以下で示す他の例も同様です。
+
+```{r}
+nikkei225 <- rfj('998407.O', start_date="2014-1-1")
+nikkei225 %>% ggvis(~Date, ~Close) %>% layer_paths(stroke:="red", strokeWidth:=3)
+```
+
+ついでにopenairパッケージでカレンダープロットにしてみましょう。インストールは以下。
+```{r eval=FALSE}
+install.packages("openair")
+library(openair)
+```
+これを使うには以下のようにこう書くっ！日付の列の名前がdate固定らしく以下のsetNames関数のように列名を修正している点に注意。またcalendarPlotがdata.frameじゃないと怒るのでそこの変換も忘れずに。
+```{r}
+nikkei225 %>% 
+  setNames(c("date", names(nikkei225)[-1])) %>%
+  data.frame %>%
+  calendarPlot(pollutant = "Close", year = "2014", cols="jet")
+```
+
+
+### 為替を振り返る
+次にドル円・ユーロ円の推移も見ておきましょう。コードは適当に[Yahoo Financeのページ](http://stocks.finance.yahoo.co.jp/stocks/detail/?code=USDJPY=X)から適当に調べる感じで。また、実はRFinanceJパッケージでは複数銘柄同時取得もサポートしているので、以下のように書くことができます。可視化は今度はrChartsで。なかなかトリッキーな書き方をしないと横軸の日付がうまく出ない。その辺は
+
+- http://stackoverflow.com/questions/21816975/hplot-r-x-axis-label-and-x-y-correspondence
+
+を見てがんばった。がんばったので、これはこれでデータ操作も含めて改めてまとめたい。
+```{r}
+fx <- rfj(c("USDJPY=X", "EURJPY=X"), start_date="2014-1-1")
+#データ操作も結構アレ
+#リストに格納された各データフレーム(1通貨に対応)の終値と日付だけを抽出して、１つのデータフレームとする
+fxd <- names(fx) %>%
+  lapply(function(name){
+    fx[[name]] %>% 
+      select(Date, Close) %>% 
+      cbind(name, .)
+  }) %>% 
+  rbind_all
+```
+```{r results='asis'}
+#時間軸を横にしての描画。辛い。
+h1 <- fxd %>% 
+  mutate(Date=as.numeric(as.POSIXct(Date))*1000) %>%
+  hPlot(Close~Date, data=., type="line", group="name", radius=6)
+h1$xAxis(type='datetime', labels=list(format='{value:%Y-%m-%d}'))
+h1$show('iframesrc', cdn=TRUE)
+```
+
+
+### 原油(石油)価格を振り返る
+そもそも簡単に手に入りそうな原油のデータソースがなくて辛いです。ただタイトルに「RFinanceJで振り返る」と銘打っちゃってるんで、なんとかします。幸いにして日本には"原油価格に連動するよう商品設計"された、上場ものの金融商品(ETFっていう奴。みんなも買えるよ)がいくつかあります。なんで油に投資したい大きなお友達はこれらを買えば良いわけです。
+
+- http://money.fanet.biz/study/learning/etf/column/10.html
+
+このページを参考にすると、手数料的に考えて買うなら野村の
+
+- [NEXT FUNDS NOMURA原油インデックス連動型上場投信](http://nextfunds.jp/lineup/1699/detail.html)
+
+かなぁと考えて、この上場投資信託の価格を引っ張ってきて、ニュースなんかでは"ニューヨーク(NY)原油"と呼ばれているWTI先物の油の値段とほぼ同じ動きだろうと期待するわけです。細かい話、この商品はNOMURA原油インデックスという謂わばNOMURAが作った油の日経平均みたいなもんに連動するように作られていているんですが、
+
+- http://qr.nomura.co.jp/jp/oil/index.html
+
+のサイトをこまかーくみるとそのNOMURA原油インデックスってのはいまんとこWTI原油先物でのみ構成されているようなので、これでいいだろうと。
+
+また、こいつを使うメリットってのはちゃんとあって、通常、ニュースなんかで報道される油の価格って日本円じゃなくて米ドル建てなんだけど、ここで示した(上場)投信のデータはちゃんと円建てになっているので、「ぼくらが仮に原油に投資したとしたらどのくらい儲かるのか？」という指標として使えるという意味でメリットがある。逆にニュースなんかで報道されている油の価格は米ドル円レートの影響も含まれちゃってるんで、それを逆算して除去して評価しないと、自分が(円で)投資した場合のチャートとは一致しないというわけですな。
+
+このグラフをみると…シェールガスを潰したいのか、年初から見て三割くらい下落してますね。油をよく使うお仕事、例えばトラックの運ちゃんや漁師さんなんかには、トラック・船のガス代に対してプラスの影響が期待できるわけですな。あと、我々も石油関連製品の値下がりから(きっと)メリットを受けられるはずです。
+
+```{r}
+oil <- rfj('1699.T', start_date="2014-1-1")
+oil %>% ggvis(~Date, ~Close) %>% layer_paths(stroke:="blue", strokeWidth:=3)
+```
+
+### 金価格を振り返る
+金も油と同じ状況(米ドル建てで表示、データ取りにくい)なんで説明は省略。
+どのデータを取得するのかは、よくよく探すと原油も含めて東京証券取引所のページで何が上場しているのか一発でわかるようになってたので、ここがよさげです。
+
+- http://www.tse.or.jp/rules/etf/list/shohin.html
+
+金価格として使うデータの元はこれにした。
+
+- [1540 ETF 純金上場信託](http://stocks.finance.yahoo.co.jp/stocks/history/?code=1540.T)
+
+これもサクッとデータを取得してみると…1割弱値上がりした感じか。
+```{r}
+gold <- rfj('1540.T', start_date="2014-1-1")
+gold %>% ggvis(~Date, ~Close) %>% layer_paths(stroke:="green", strokeWidth:=3)
+```
+
+### 何に投資するのが一番おいしかったのか？
+上で取得した
+
+- 日経平均
+- 為替(USDJPY, EURJPY)
+- 油
+- 金
+
+のうち、今年一番の好成績だったものを出してみます。パッケージ使ってもいいんだろうけど、自分で書いてみた。コードはコメント付なので、空気とコードを読んでくれ。
+```{r}
+#全データをまとめる
+data <- list(nikkei225, fx[[1]], fx[[2]], oil, gold)
+#加工
+#全データの終値・日付だけ取り出す→全リストの要素を１つのＤＦへと結合→名前の変更
+data <- data %>% 
+  lapply(function(x)data.frame(Date=x$Date, x$Close)) %>%
+  Reduce(function(x, y) merge(x, y, by="Date"), .) %>% 
+  setNames(c("Date", "Nikkei225", "USDJPY", "EURJPY", "Oil", "Gold"))
+#一番初めの値で各列を割る(規格化)→データフレームとする。所謂melt処理→描画
+data.frame(Date=data[,1], sapply(names(data[,-1]),function(x)data[,x]/data[1, x])) %>%
+  gather(key=variable, value=value, -Date) %>%
+  ggvis(~Date, ~value, stroke = ~variable) %>% 
+  layer_lines(strokeWidth:=2)
+```
+
+というわけで、今年一番の好成績だったのはUSDJPYということですな。ドルを買っておけば円安のおかげで儲かったと。黒田さまさまだったというわけです。もちろんここに債券や外国株式なんかを突っ込んでみても面白いんじゃないでしょうか。
+
+## まとめ
+パッケージを使って金融マーケットのデータを取得しました。その結果、9月以降の株高・円安傾向は明らかに見てとれました。みなさんの財布も相当温かくなったことかと思います、ごちそうさまです。…と思ったら原油安の影響を受けて、12月半ばあたりにロシアのルーブル、及び米の利上げ観測の余波を食らって新興国の株価もガッツリ下がってますな、外貨建資産を持っている方(俺含む)、ご愁傷様です。
+
+rChartsでの描画やデータいじりまわりで苦労したところは別途まとめることします。あと、誰か知っていたら日本の金融/経済系のデータが転がってるサイトを教えて下さい。
