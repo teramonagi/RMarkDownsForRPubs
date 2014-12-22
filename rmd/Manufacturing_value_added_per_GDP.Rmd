@@ -1,0 +1,77 @@
+---
+title: "Manufacturing, value added (% of GDP)"
+author: "teramonagi"
+output: html_document
+---
+
+<style>
+  iframe {
+  height: 550px;
+  width: 850px;
+  }
+</style>
+
+This document shows "How the 'Manufacturing, value added (% of GDP)' changed over time" using R(rCharts, dygraphs packages).
+```{r}
+options(warn=-1)
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(WDI))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(xts))
+suppressPackageStartupMessages(library(zoo))
+suppressPackageStartupMessages(library(dygraphs))
+suppressPackageStartupMessages(library(rCharts))
+suppressPackageStartupMessages(library(pipeR))
+opts_chunk$set(prompt=TRUE, warning=FALSE, error=FALSE, results = "asis", comment=NA, tidy=FALSE)
+#Country code(ISO-2 character, G20 + my interests)
+iso2c <- c("AU", "AT", "BE", "BR", "KH", "CA", "CN", "DK", "FI", "FR", "DE", "GR", "IN", "ID", 
+           "IT", "JP", "KP", "KR", "MY", "MX", "NL", "NZ", "NO", "PH", "PT", "RU", "SA", "SG", 
+           "ZA", "ES", "SE", "CH", "TH", "TR", "AE", "GB", "US", "VN")
+#Get data
+manu <- WDI(country=iso2c, indicator='NV.IND.MANF.ZS', start=1960, end=2013)
+```
+
+To visualize data with rCharts(nPlot, NVD3), You have to write as the folloing:
+(You have to be careful not to choose so much counties because it is too heavy to show)
+
+```{r}
+#rCharts(nPlot, NVD3)
+data_nplot <- manu %>>% na.omit %>>% select(-iso2c) %>>%
+  rename(value=NV.IND.MANF.ZS) %>>%
+  mutate(value=round(value)) %>>%
+  as.data.frame
+nplot <- nPlot(value~year, data=data_nplot, group="country", type="lineChart")
+#Default country : Japan
+nplot$set(disabled = unique(data_nplot$country) %>>% (.!="Japan"))
+nplot$yAxis(axisLabel="Manufacturing, value added (% of GDP)")
+nplot$xAxis(axisLabel="Year")
+nplot$set(height=550, width=850)
+nplot$show("iframesrc", cdn=TRUE)
+```
+<style>iframe.rChart{ width: 100%; height: 600px;}</style>
+
+In addition to that, I make a graph with [dygraph package](http://rstudio.github.io/dygraphs/index.html). It it a little bit difficult to understand at first sight :(
+```{r}
+#Make a color
+#Caution：We must seem to remove the last two characters(alpha value) and name attribution
+cl <- rainbow(length(iso2c)) %>% sapply(function(x)substr(x, 1, 7))
+names(cl) <- NULL
+#dygraph
+manu %>>% select(year, country, NV.IND.MANF.ZS) %>>% na.omit %>>%
+  spread(key=country, value=NV.IND.MANF.ZS) %>>% 
+  as.data.frame %>>% 
+  mutate(year=as.Date(as.character(year), "%Y")) %>>%
+  read.zoo %>>% as.xts %>>% 
+  dygraph(main="USDJPY and EURJPY charts") %>>% 
+  dyHighlight(hideOnMouseOut=FALSE, highlightSeriesOpts=list(strokeWidth = 3)) %>>%
+  dyLegend(show = "always", hideOnMouseOut=FALSE) %>>%
+  dyOptions(colors=cl)
+```
+
+
+To Search the indicator of WDI function, we can use
+```{r}
+#Search data key
+WDIsearch('manufacturing')
+```
