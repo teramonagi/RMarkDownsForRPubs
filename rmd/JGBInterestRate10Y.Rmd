@@ -1,0 +1,32 @@
+---
+title: "The time series of JGB Interest Rate(10Y)"
+author: "teramonagi"
+output: html_document
+---
+
+In this document, I will vizualize the time series of "JGB Interest Rate - 10Y".
+
+At first, I have to install and load some packages.
+```{r eval=FALSE}
+install.packages(c("dplyr", "Quandl", "devtools"))
+library(devtools)
+library(Quandl)
+library(dplyr)
+devtools::install_github("rstudio/dygraphs")
+library(dygraphs)
+```
+```{r echo=FALSE}
+options(warn=-1)
+suppressPackageStartupMessages(library(devtools))
+suppressPackageStartupMessages(library(Quandl))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(dygraphs))
+```
+
+After that, I download the JGB 10Y data from Quandl and vizualize it with dygraph.
+```{r}
+Quandl("MOFJ/INTEREST_RATE_JAPAN_10Y", start_date="2014-01-01") %>%
+  read.zoo %>%
+  dygraph(main="JGB Interest Rate - 10Y") %>% 
+  dyRangeSelector()
+```

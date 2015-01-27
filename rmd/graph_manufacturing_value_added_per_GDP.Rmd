@@ -1,0 +1,39 @@
+---
+output: html_document
+---
+
+```{r echo=FALSE}
+options(warn=-1)
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(WDI))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(xts))
+suppressPackageStartupMessages(library(zoo))
+suppressPackageStartupMessages(library(dygraphs))
+suppressPackageStartupMessages(library(rCharts))
+suppressPackageStartupMessages(library(pipeR))
+opts_chunk$set(prompt=TRUE, warning=FALSE, error=FALSE, results = "asis", comment=NA, tidy=FALSE)
+#Country code(ISO-2 character, G20 + my interests)
+iso2c <- c("AU", "AT", "BE", "BR", "KH", "CA", "CN", "DK", "FI", "FR", "DE", "GR", "IN", "ID", 
+           "IT", "JP", "KP", "KR", "MY", "MX", "NL", "NZ", "NO", "PH", "PT", "RU", "SA", "SG", 
+           "ZA", "ES", "SE", "CH", "TH", "TR", "AE", "GB", "US", "VN")
+#Get data
+manu <- WDI(country=iso2c, indicator='NV.IND.MANF.ZS', start=1960, end=2013)
+#rCharts(nPlot, NVD3)
+data_nplot <- manu %>>% na.omit %>>% select(-iso2c) %>>%
+  rename(value=NV.IND.MANF.ZS) %>>%
+  mutate(value=round(value)) %>>%
+  as.data.frame
+```
+<div align="center"><h1>Manufacturing value added(% GDP)</h1></div>
+```{r echo=FALSE}
+nplot <- nPlot(value~year, data=data_nplot, group="country", type="lineChart")
+#Default country : Japan
+nplot$set(disabled = unique(data_nplot$country) %>>% (.!="Japan"))
+nplot$yAxis(axisLabel="Manufacturing, value added (% of GDP)")
+nplot$xAxis(axisLabel="Year")
+nplot$set(height=550, width=850)
+nplot$show("iframesrc", cdn=TRUE)
+```
+<style>iframe.rChart{ width: 100%; height: 600px;}</style>
